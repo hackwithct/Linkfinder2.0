@@ -1,15 +1,8 @@
-#!/usr/bin/env python
-# Python 3
-# LinkFinder
-# By Gerben_Javado
-
-# Fix webbrowser bug for MacOS
 import os
 os.environ["BROWSER"] = "open"
 
 # Import libraries
-import re, sys, glob, html, argparse, jsbeautifier, webbrowser, subprocess, base64, ssl, xml.etree.ElementTree
-
+import re, sys, glob, html, argparse, jsbeautifier, webbrowser, subprocess, base64, ssl, xml.etree.ElementTree, requests
 from gzip import GzipFile
 from string import Template
 
@@ -114,36 +107,33 @@ def parser_input(input):
     return [path if os.path.exists(input) else parser_error("file could not \
 be found (maybe you forgot to add http/https).")]
 
-
 def send_request(url):
-    '''
-    Send requests with Requests
-    '''
-    q = Request(url)
-
-    q.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
-        AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36')
-    q.add_header('Accept', 'text/html,\
-        application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8')
-    q.add_header('Accept-Language', 'en-US,en;q=0.8')
-    q.add_header('Accept-Encoding', 'gzip')
-    q.add_header('Cookie', args.cookies)
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.8',
+        'Accept-Encoding': 'gzip',
+        'Cookie': args.cookies
+    }
 
     try:
-        sslcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
-        response = urlopen(q, timeout=args.timeout, context=sslcontext)
-    except:
-        sslcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
-        response = urlopen(q, timeout=args.timeout, context=sslcontext)
+        response = requests.get(url, headers=headers, timeout=args.timeout, verify=False)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        print(f"Error making request: {e}")
+        return None
 
-    if response.info().get('Content-Encoding') == 'gzip':
-        data = GzipFile(fileobj=readBytesCustom(response.read())).read()
-    elif response.info().get('Content-Encoding') == 'deflate':
-        data = response.read().read()
-    else:
-        data = response.read()
+    try:
+        content_type = response.headers['Content-Type']
+        if 'application/javascript' in content_type or 'text/javascript' in content_type:
+            data = response.text
+        else:
+            data = response.content.decode('utf-8', 'replace')
+    except Exception as e:
+        print(f"Error processing response: {e}")
+        return None
 
-    return data.decode('utf-8', 'replace')
+    return data
 
 def getContext(list_matches, content, include_delimiter=0, context_delimiter_str="\n"):
     '''
